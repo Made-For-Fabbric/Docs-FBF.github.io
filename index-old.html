@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.2.0/swagger-ui.min.css">
+    <title>OpenAPI FBF</title>
+
+<body>
+    <div id="openapi">
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/5.2.0/swagger-ui-bundle.js"></script>
+        <script>
+            window.onload = function () {
+                const ui = SwaggerUIBundle({
+                    url: "assets/openapi3.yaml",
+                    dom_id: "#openapi"
+                })
+            }
+        </script>
+</body>

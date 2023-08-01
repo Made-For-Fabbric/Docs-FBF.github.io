@@ -134,7 +134,7 @@ paths:
         - name: User-Agent
           in: header
           type: string
-          description: We identify as fabbbric.com
+          description: We identify as fabbric.com
         - name: X-Secret
           in: header
           type: string

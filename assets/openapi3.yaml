@@ -1,0 +1,1006 @@
+openapi: 3.0.1
+info:
+  title: Fullfulment by Fabbric API
+  description: "> This implementation is **only required for CUSTOM e-commerce platforms**.\
+    \ We already have an stablished an tested solution for many other platforms \n\
+    \n# Introduction\n\nThis documentation describe the endpoints required or optional\
+    \ to integrate your ecommerce with [Fabbric](http://fabbric.com).\n\nYou will\
+    \ need to CODE in your backend system of choice, and **provide valid urls** for\
+    \ each of the endpoints descibed.\n> we will use the urls that you probide to\
+    \ **test** and **probide the connection** Ecommerce <--> Fabbric \n\n| Feel free\
+    \ to change the paths descibed; later you will have to copy paste them to our\
+    \ activation form. |\n| --- |\n|  Example >> https://myshop.com/fabbric/rocks/get_orders_1st_step\
+    \ |\n"
+  version: 1.0.0
+  x-logo:
+    url: https://cdn.shopify.com/s/files/1/0567/9965/8031/files/Morado_Fondo_Blanco.png
+    altText: Fabbric logo
+servers:
+- url: https://your_ecommerce.com/v1
+tags:
+- name: Product
+  description: |
+    We use this endpoint to automatically download the products from your Ecommerce.
+    > If you have a second shop integrated, selling the same products (exemple: a Shopify store), you don't need to implement this endpoint. You **MUST** use the **same SKU field** in the products and we will download them from the standard store.
+
+    > Notice that not all Product Model fields are required.
+- name: Return
+  description: |
+    We will call your endpoints to update your system when an return moves forward.
+    > **⚠  If the request fails, we will not try again later.**
+- name: Order
+  description: |
+    We use this endpoint to automatically download the orders from your Ecommerce.
+
+    This endpoint is mandatory, and the only one required to start working with Fabbric.
+
+    > Notice that not all Order Model fields are required.
+- name: Order Status
+  description: "> OPTIONAL\n\nWe will call your endpoints to update your system when\
+    \ an order moves forward.\n> **⚠  If the request fails, we will not try again\
+    \ later.** \n\n\n```markdown\n  (NEW)   >>       PROCESSING       >>   SHIPPED\
+    \   >>  FULFILLED\n                     (Info)\n                - currier\n  \
+    \              - tracking_url\n```\n"
+- name: Stock
+  description: '> OPTIONAL'
+- name: product_model
+  description: |
+    <SchemaDefinition schemaRef="#/components/schemas/Product" />
+  x-displayName: The Product Model
+- name: order_model
+  description: |
+    <SchemaDefinition schemaRef="#/components/schemas/Order" />
+  x-displayName: The Order Model
+- name: orderItems_model
+  description: |
+    <SchemaDefinition schemaRef="#/components/schemas/OrderItems" />
+  x-displayName: The Order Items Model
+- name: update_model
+  description: |
+    <SchemaDefinition schemaRef="#/components/schemas/StockUpdate" />
+  x-displayName: The Stock Update Model
+- name: stock_model
+  description: |
+    <SchemaDefinition schemaRef="#/components/schemas/Stock" />
+  x-displayName: The Stock Model
+- name: inbound_model
+  description: |
+    <SchemaDefinition schemaRef="#/components/schemas/Inbound" />
+  x-displayName: The Inbound Stock Model
+paths:
+  /products:
+    get:
+      tags:
+      - Product
+      summary: get a list of products
+      description: We use this endpoint to read your products.
+      produces:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoadProducts"
+      parameters:
+      - name: User-Agent
+        in: header
+        description: We identify as fabbric.com
+        schema:
+          type: string
+      - name: X-Secret
+        in: header
+        description: The given secret key added to your configuration
+        schema:
+          type: string
+      responses:
+        200:
+          description: products and link to the next page are returned
+          headers:
+            X-Next-Request:
+              description: Alternative to link. Contains a URL from the same domain
+                or a value that will be passed in the next request as a parameter
+                'page'
+              schema:
+                type: string
+            link:
+              description: next in https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Link
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        400:
+          description: (optional) wrong parameters
+          content: {}
+        403:
+          description: (optional) access credentials error (X-Secret or User-Agent)
+          content: {}
+        408:
+          description: (optional) request Timeout
+          content: {}
+        500:
+          description: Any code that is not 200, will be taken as a exception from
+            the server
+          content: {}
+  /products/{{variant_id}}_{{sku}}_{{id}}:
+    get:
+      tags:
+      - Product
+      summary: get a single product
+      description: "We use this endpoint to read one product on the setup and to automatically\
+        \ sync new products if auto-sync is configured. \nThis is specially useful\
+        \ if your shop has many products, so you can cherry-pick only one product.\n\
+        \n### You can have any url, and we will replace {{variant_id}} {{sku}} {{id}},\
+        \ for example:\n\n> www.some.com/product/{{id}}/{{variant_id}}?sku={{sku}}\n\
+        \n> www.some.com/pr/{{variant_id}}\n\n> www.some.com/product/?s={{sku}}\n"
+      parameters:
+      - name: User-Agent
+        in: header
+        description: We identify as fabbric.com
+        schema:
+          type: string
+      - name: X-Secret
+        in: header
+        description: The given secret key added to your configuration
+        schema:
+          type: string
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        400:
+          description: (optional) wrong parameters
+          content: {}
+        403:
+          description: (optional) access credentials error (X-Secret or User-Agent)
+          content: {}
+        408:
+          description: (optional) request Timeout
+          content: {}
+        500:
+          description: Any code that is not 200, will be taken as a exception from
+            the server
+          content: {}
+  /orders:
+    get:
+      tags:
+      - Order
+      summary: get a list of orders
+      description: We use this endpoint to load orders to our system orders Only return
+        the orders that Fabbric should prepare (confirmed and paid by your customers)
+      produces:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoadOrders"
+        description: Load orders from ecommerce
+        required: true
+      parameters:
+      - name: User-Agent
+        in: header
+        description: We identify as fabbric.com
+        schema:
+          type: string
+      - name: X-Secret
+        in: header
+        description: The given secret key added to your configuration
+        schema:
+          type: string
+      responses:
+        200:
+          description: successful operation to our request
+          headers:
+            X-Next-Request:
+              description: 'If set, we will use the value to get the next page of
+                orders. Dividing the responses in batches to avoid timeouts + saving
+                resources.  IMPORTANT: Orders must be returned in order: ''Example
+                batch_size=4 : [1,2,3,4] , [5,6,7,8]'''
+              schema:
+                type: string
+            link:
+              description: next in https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Link
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        400:
+          description: (optional) wrong parameters
+          content: {}
+        403:
+          description: (optional) access credentials error (X-Secret or User-Agent)
+          content: {}
+        408:
+          description: (optional) request Timeout
+          content: {}
+        500:
+          description: Any code that is not 200, will be taken as a exception from
+            the server
+          content: {}
+  /order_to_processing:
+    post:
+      tags:
+      - Order Status
+      summary: (webhook) PROCESSING
+      description: |-
+        We call this endpoint when an order changes from NEW to PROCESSING
+         - stock is reserved in a warehouse
+         - the label is created
+         - we already know who is the currier, so we trigger at this point the traking email (with traking_url)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  example: shop1928571
+                tracking_company:
+                  type: string
+                  example: CEX
+                traking_number:
+                  type: string
+                  example: "9884000351566198"
+                traking_url:
+                  type: string
+                  example: https://s.correosexpress.com/c?n=9884000351566198
+        required: true
+      responses:
+        200:
+          description: success
+          content: {}
+      x-codegen-request-body-name: ""
+  /order_to_shipped:
+    post:
+      tags:
+      - Order Status
+      summary: (webhook) SHIPPED
+      description: |-
+        We call this endpoint when an order changes from PROCESSING to SHIPPED
+         - the order was phisically prepared
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  example: shop1928571
+        required: true
+      responses:
+        200:
+          description: success
+          content: {}
+      x-codegen-request-body-name: ""
+  /order_to_fulfilled:
+    post:
+      tags:
+      - Order Status
+      summary: (webhook) FULFILLED
+      description: |-
+        We call this endpoint when an order changes from SHIPPED to FULFILLED
+         - the order was received by the client
+         - or the order reached a final state (like it was rejected by the client)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                order_id:
+                  type: string
+                  example: shop1928571
+        required: true
+      responses:
+        200:
+          description: success
+          content: {}
+      x-codegen-request-body-name: ""
+  /update_stock:
+    post:
+      tags:
+      - Stock
+      summary: (webhook) list with new stocks available for sale
+      description: Fabbric Fullfilment will comunicate periodically the actual warehoused
+        stock.
+      requestBody:
+        description: products with the stock quantity
+        content:
+          application/json:
+            schema:
+              type: array
+              example:
+              - id: t-124
+                variant_id: blue-M124
+                quantity: 192
+              - id: t-124
+                variant_id: red-S987
+                quantity: 80
+              items:
+                $ref: '#/components/schemas/StockUpdate'
+        required: true
+      responses:
+        200:
+          description: success
+          content: {}
+      x-codegen-request-body-name: ""
+  /return_pending:
+    post:
+      tags:
+      - Return
+      summary: (webhook) PENDING
+      description: We call this endpoint when a new return is created and the initial
+        status is PENDING, which means that it needs to be approved in order to be
+        processed
+      consumes:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnPending"
+      responses:
+        200:
+          description: success
+          content: {}
+  /return_approved:
+    post:
+      tags:
+      - Return
+      summary: (webhook) APPROVED
+      description: |-
+        We call this endpoint when a return is approved because:
+         - it was in status PENDING and was manually APPROVED
+         - it was created directly in the APPROVED status because the shop accepts returns automantically.
+      consumes:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnApproved"
+      responses:
+        200:
+          description: success
+          content: {}
+  /return_travelling:
+    post:
+      tags:
+      - Return
+      summary: (webhook) TRAVELLING
+      description: |-
+        We call this endpoint when a return is in the hands of the carrier and is travelling because:
+         - it is a return of type "refused" and it was created automanically in this state because the order was never delivered and is now being returned by the same carrier
+         - it was in status APPROVED and it was picked up by the carrier and now is being returned to the warehouse.
+      consumes:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnTravelling"
+      responses:
+        200:
+          description: success
+          content: {}
+  /return_received:
+    post:
+      tags:
+      - Return
+      summary: (webhook) RECEIVED
+      description: |-
+        We call this endpoint when a return changes from TRAVELLING to RECEIVED
+         - the return arrived at the warehouse, was processed and the products have been re-stocked if necessary
+      consumes:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnReceived"
+      responses:
+        200:
+          description: success
+          content: {}
+  /return_exception:
+    post:
+      tags:
+      - Return
+      summary: (webhook) EXCEPTION
+      description: We call this endpoint when a return could not be created or processed
+        correctly and an exception occurred
+      consumes:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReturnException"
+      responses:
+        200:
+          description: success
+          content: {}
+  /new_product_inbound:
+    post:
+      tags:
+      - Inbound
+      summary: create new product inbound
+      description: |-
+        When created, we are expecting to receive the products in the warehouse. To avoid timeouts in the process, huge product inbounds should be split (max. 100 products x delivery note)
+         > **⚠  You have to request Customer service to activate this endpoint and provide you with a valid URL**
+      consumes:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Inbound"
+      responses:
+        200:
+          description: successful
+          content: {}
+        400:
+          description: wrong parameters
+          content: {}
+        403:
+          description: access credentials error (X-Secret or User-Agent)
+          content: {}
+        408:
+          description: request Timeout
+          content: {}
+        500:
+          description: Internal server error
+          content: {}
+  /new_product_inbound_accepted:
+    post:
+      tags:
+      - Inbound
+      summary: (webhook) inbound barcode arrived
+      description: Hook that is triggered when an product inbound arrives and is accepted
+        with the given quantities  > **Includes the TRUE received quantities for the
+        inbound event**
+      consumes:
+        - application/json
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Inbound"
+      responses:
+        200:
+          description: successful inbound
+          content: {}
+components:
+  schemas:
+    Product:
+      required:
+      - grams
+      - id
+      - sku
+      - title
+      type: object
+      properties:
+        id:
+          type: string
+          description: platform id, common in similar products. We use it to allow
+            changes between products with same id.
+        variant_id:
+          type: string
+          description: platform id, specific to your SKU
+        title:
+          type: string
+          description: t-shirt, for example
+        description:
+          type: string
+          description: blue and M size
+        sku:
+          type: string
+        variant_title:
+          type: string
+        img:
+          type: string
+          description: Will be used within our platform, in the emails to the client
+            and in the returns / changes platform. Also it will be seen in the warehouse
+            by the picking operators, so they can easily recognise the product.
+          format: url
+        barcode:
+          type: string
+          description: If your product has barcodes, we can use them in the warehouse
+            inbound process
+        grams:
+          type: integer
+          description: required to calculate the estimated weight of the orders.
+          format: int64
+        HSCODE:
+          type: integer
+          description: export idetifier (https://www.tariffnumber.com/)
+          format: int32
+        ecoProduct:
+          type: boolean
+          default: false
+    LoadProducts:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Product status, so your server can filter the returned products.
+            If active, we only want to see the products that are on sale now.
+          enum:
+          - active
+          - draft
+          - archived
+        updated_days_ago:
+          type: number
+          description: Days ago since last update, so your server can filter only
+            the products that changed recently. If 4 (for example, product that changed
+            within the last 4 days)
+        batch_size:
+          type: number
+          description: max number of products to return, so we can reduce or increase
+            later the page size. If 20 (we will get 20 products for each request)
+          example: 50.0
+        page:
+          type: string
+          description: If next_page is returned, and is not a URL from /products with
+            extra parameters for pagination, we pass the next page value as a queryparameter
+            here.
+          example: null
+        metafields:
+          type: string
+          description: Parameters that you can pass from our UX to filter the request
+            (brand, sku, id, amphora_to_update or whatever that works to find specific
+            products in your database)
+          example: null
+    LoadOrdersDate:
+      type: object
+      properties:
+        from_date:
+          type: string
+          description: get the orders from that date (ISO date)
+          example: 2022-01-01
+        from_id:
+          type: string
+          description: get the orders from a certain Order.id
+          example: null
+        batch_size:
+          type: number
+          description: max number of orders to return
+          example: 50.0
+    LoadOrdersId:
+      type: object
+      properties:
+        from_date:
+          type: string
+          description: get the orders from that date (ISO date)
+          example: null
+        from_id:
+          type: string
+          description: get the orders from a certain Order.id
+          example: "1234567890"
+        batch_size:
+          type: number
+          description: max number of orders to return
+          example: 50.0
+    LoadOrders:
+      type: object
+      properties:
+        from_date:
+          type: string
+          description: get the orders from that date (ISO date)
+          example: null
+        from_id:
+          type: string
+          description: get the orders from a certain Order.id
+          example: null
+        batch_size:
+          type: number
+          description: max number of orders to return
+    ReturnPending:
+      required:
+      - external_shipping
+      - order_id
+      - time
+      type: object
+      properties:
+        order_id:
+          type: string
+          description: Id of the original order from which the return was creaded
+          example: shop1928571
+        type:
+          type: string
+          description: Type of the return
+          example: parcelshop
+          enum:
+          - refused
+          - parcelshop
+          - homepickup
+        time:
+          type: string
+          description: Time when the return was created or detected
+          example: 2023-01-01
+        external_shipping:
+          type: boolean
+          description: Whether the return will be sent using Fabbric carriers or it
+            will use an external carrier
+          example: false
+    ReturnException:
+      required:
+      - exception_message
+      - external_shipping
+      - order_id
+      - time
+      type: object
+      properties:
+        order_id:
+          type: string
+          description: Id of the original order from which the return was creaded
+          example: shop1928571
+        exception_message:
+          type: string
+          description: Message describing the exception
+          example: Return cannot be sent to this country
+        type:
+          type: string
+          description: Type of the return
+          example: parcelshop
+          enum:
+          - refused
+          - parcelshop
+          - homepickup
+        time:
+          type: string
+          description: Time when the return was created or detected
+          example: 2023-01-01
+        external_shipping:
+          type: boolean
+          description: Whether the return will be sent using Fabbric carriers or it
+            will use an external carrier
+          example: false
+    ReturnApproved:
+      required:
+      - external_shipping
+      - order_id
+      - time
+      - type
+      type: object
+      properties:
+        order_id:
+          type: string
+          description: Id of the original order from which the return was creaded
+          example: shop1928571
+        type:
+          type: string
+          description: Type of the return
+          example: parcelshop
+          enum:
+          - refused
+          - parcelshop
+          - homepickup
+        time:
+          type: string
+          description: Time when the return was created or detected
+          example: 2023-01-01
+        external_shipping:
+          type: boolean
+          description: Whether the return will be sent using Fabbric carriers or it
+            will use an external carrier
+          example: false
+        carrier:
+          type: string
+          description: Carrier that is being used for the return. Returns of type
+            "refused" will use the same carrier as the one used for the shipping of
+            the original order
+          example: GLS
+    ReturnTravelling:
+      required:
+      - external_shipping
+      - order_id
+      - time
+      - time_travelling
+      - type
+      type: object
+      properties:
+        order_id:
+          type: string
+          description: Id of the original order from which the return was creaded
+          example: shop1928571
+        type:
+          type: string
+          description: Type of the return
+          example: parcelshop
+          enum:
+          - refused
+          - parcelshop
+          - homepickup
+        time:
+          type: string
+          description: Time when the return was created or detected
+          example: 2023-01-01
+        time_travelling:
+          type: string
+          description: Time when the return has been delivered to the carrier.
+          example: 2023-01-02
+        external_shipping:
+          type: boolean
+          description: Whether the return will be sent using Fabbric carriers or it
+            will use an external carrier
+          example: false
+        carrier:
+          type: string
+          description: Carrier that is being used for the return. Returns of type
+            "refused" will use the same carrier as the one used for the shipping of
+            the original order
+          example: GLS
+        tracking_url:
+          type: string
+          description: Tracking url of the return
+          example: https://www.ups.com/track?tracknum=12345
+    ReturnReceived:
+      required:
+      - order_id
+      type: object
+      properties:
+        order_id:
+          type: string
+          example: shop1928571
+        images:
+          type: array
+          example: ""
+    Order:
+      required:
+      - currency
+      - customer_email
+      - customer_phone
+      - id
+      - items_list
+      - name
+      - price
+      - shipping_address
+      - shipping_address_city
+      - shipping_address_country_code
+      - shipping_address_name
+      - shipping_address_province_code
+      - shipping_address_zip
+      - shipping_remark
+      - time
+      type: object
+      properties:
+        id:
+          type: string
+          description: 'Unique shop identifier (Example: 91258717581270541)'
+        name:
+          type: string
+          description: Order name, easy to read for you (#1234)
+        time:
+          type: string
+          description: ISO format time, we only save seconds precision in UTC (2022-06-04T06:52)
+        business_name:
+          type: string
+          description: Business name, for B2B orders
+        lang:
+          type: string
+          description: Language of the order. It will be used to select the language
+            for the emails
+        influencer:
+          type: string
+          description: Influencer name
+        currency:
+          type: string
+          description: Currency of purchase order
+        customer_email:
+          type: string
+          description: customer email
+        customer_phone:
+          type: string
+          description: customer phone
+        customer_id_card:
+          type: string
+          description: ID card of the customer
+        items_list:
+          type: array
+          description: Items contained in the order
+          items:
+            $ref: '#/components/schemas/OrderItems'
+        price:
+          type: number
+          description: price of the order (used in the invoice)
+        price_usd:
+          type: number
+          description: price in dollars
+        shipping_line:
+          type: string
+          description: currier line to be used in the order. The option must be available
+            for the given country.
+          enum:
+          - default
+          - aerial
+          - postal
+        shipping_address:
+          type: string
+          description: Address first line
+        shipping_address2:
+          type: string
+          description: Address second line
+        shipping_address_city:
+          type: string
+          description: city
+        shipping_address_country_code:
+          type: string
+          description: ISO country code (lenght 2)
+        shipping_address_name:
+          type: string
+          description: Name of the customer
+        shipping_address_zip:
+          type: string
+          description: zip code
+        shipping_address_province_code:
+          type: string
+          description: province (usefull in USA)
+        shipping_remark:
+          type: string
+          description: remark for the currier ( like, 'knok the door in front if nobody
+            answers')
+        files:
+          type: array
+          description: url of pdf files to print with the order.
+          items:
+            type: string
+    OrderItems:
+      required:
+      - id
+      - price
+      - quantity
+      - variant_id
+      type: object
+      properties:
+        id:
+          type: string
+          description: platform id, common in similar products. We use it to allow
+            changes between products with same id.
+        variant_id:
+          type: string
+          description: platform id, specific to your SKU
+        sku:
+          type: string
+          description: Internal identifier of a product, shared between platforms
+            (producers, ERP, Amazon, shopify, invoices, b2b...)
+        quantity:
+          type: integer
+          description: Units of the given product
+          format: int32
+        price:
+          type: string
+          description: Price of this product in the order
+    StockUpdate:
+      required:
+      - id
+      - quantity
+      - variant_id
+      type: object
+      properties:
+        id:
+          type: string
+          description: platform id, common in similar products. We use it to allow
+            changes between products with same id.
+        variant_id:
+          type: string
+          description: platform id, specific to your SKU
+        quantity:
+          type: integer
+          description: Units of the given product
+          format: int32
+    Stock:
+      required:
+      - id
+      - variant_id
+      type: object
+      properties:
+        id:
+          type: string
+          description: platform id, common in similar products. We use it to allow
+            changes between products with same id.
+        variant_id:
+          type: string
+          description: platform id, specific to your SKU
+    Inbound:
+      required:
+      - company
+      - shipping_type
+      - warehouse
+      type: object
+      properties:
+        company:
+          type: string
+          description: Company identifier for the order
+          example: MyShop
+        warehouse:
+          type: string
+          description: Id of the warehouse that receive the order
+          example: v-xxxxxxxxx
+        shipping_type:
+          type: string
+          enum:
+          - pallet
+          - box
+        expected_time:
+          type: string
+          description: ISO timestamp of the expected arrival time
+          example: 2022-07-15
+        note:
+          type: string
+          description: Internal note for the inbound event
+          example: 'Albarán: brand-1928'
+        InboundBarcode:
+          type: array
+          items:
+            $ref: '#/components/schemas/InboundBarcode'
+    InboundBarcode:
+      required:
+      - barcode
+      - units
+      type: object
+      properties:
+        barcode:
+          type: string
+          description: "Used to scan and identify the inbound unit. \nIf you have\
+            \ the barcode knowing what is inside each unit, use it.\nOtherwise, use\
+            \ the \"delivery note\" or anything that can identify the whole inbound.\n\
+            IMPORTANT: This should be scanned/easily seen when the product arrives\
+            \ at the warehouse.\n"
+          example: EAN1283712049817204
+        units:
+          type: array
+          example:
+          - sku: '#lorem'
+            quantity: 10
+          - sku: '#ipsum'
+            quantity: 20
+          items:
+            type: object
+            properties:
+              sku:
+                type: string
+                example: SOMETHING
+              quantity:
+                type: number
+                example: 10.0
+x-tagGroups:
+- name: 1st step
+  tags:
+  - Order
+- name: 2nd step
+  tags:
+  - Product
+- name: 3rd step (HOOKS)
+  tags:
+  - Order Status
+- name: 4th step (HOOKS)
+  tags:
+  - Stock
+- name: Return (HOOKS)
+  tags:
+  - Return
+- name: Stock Inbound
+  tags:
+  - Inbound
+- name: Models
+  tags:
+  - product_model
+  - order_model
+  - orderItems_model
+  - update_model
+  - stock_model
+  
